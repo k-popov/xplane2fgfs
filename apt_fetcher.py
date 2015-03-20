@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+""" Tool to download all airports from X-Plane portal
+"""
 
 import logging
 import requests
@@ -6,6 +8,7 @@ import simplejson
 import StringIO
 import base64
 import zipfile
+import sys
 
 def get_airport_apt(scenery_id=None,
                     api_base="http://gateway.x-plane.com/apiv1/"):
@@ -76,3 +79,21 @@ def strip_airport_apt(raw_airport_apt=None):
     # return airport apt data without header and footer.
     # Also remove leading and trailing newlines and spaces
     return "\n".join(apt_lines[2:-1]).strip()
+
+def print_single_apt(apt_list=None):
+    """ Function receives a list of airports' APT data free from headers
+        and footers (after strip_airport_apt() call), adds a common
+        header and footer and outputs all the airports combined to STDOUT
+    """
+    if not apt_list:
+        raise Exception("No airport's APTs passed")
+
+    # write header
+    sys.stdout.write("I\n1000 Version\n\n")
+    # write each airport passed adding an empty line at end of each
+    for airport in apt_list:
+        sys.stdout.write(airport)
+        sys.stdout.write("\n\n")
+    # write footer
+    sys.stdout.write("99")
+    return 0
