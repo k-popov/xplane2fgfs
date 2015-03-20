@@ -76,6 +76,3 @@ def strip_airport_apt(raw_airport_apt=None):
     # return airport apt data without header and footer.
     # Also remove leading and trailing newlines and spaces
     return "\n".join(apt_lines[2:-1]).strip()
-
-
-print(strip_airport_apt(get_airport_apt(1753)))
