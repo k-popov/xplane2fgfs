@@ -10,6 +10,23 @@ import base64
 import zipfile
 import sys
 
+def get_json_from_api(api_request=None):
+    """ Requests data from API, handles errors and tries to convert
+        the JSON reply into python dict
+    """
+    reply = requests.get(api_request)
+    if reply.status_code != 200:
+        logging.error("Failed to receive data from %s. Code %s",
+                      api_request, reply.status_code)
+        return None
+    logging.debug("Converting reply from %s into dict", api_request)
+    try:
+        reply_dict = reply.json()
+    except simplejson.scanner.JSONDecodeError:
+        logging.error("Reply from %s is not a valid JSON", api_request)
+        return None
+    return reply_dict
+
 def get_airport_apt(scenery_id=None,
                     api_base="http://gateway.x-plane.com/apiv1/"):
     """ Gets scenery pack via X-Plane gateway API, unpacks it
@@ -20,17 +37,10 @@ def get_airport_apt(scenery_id=None,
         raise Exception("Invalid scenery_id passed: {0}".format(scenery_id))
 
     scenery_request = api_base + "scenery/{0}".format(scenery_id)
-    logging.debug("Getting scenery from %s", scenery_request)
-    scenery_reply = requests.get(scenery_request)
-    if scenery_reply.status_code != 200:
-        logging.error("Failed to receive scenery %s. Code %s",
-                      scenery_id, scenery_reply.status_code)
-        return None
-    logging.debug("Converting reply from %sinto dict", scenery_request)
-    try:
-        scenery_json = scenery_reply.json()
-    except simplejson.scanner.JSONDecodeError:
-        logging.error("Reply from %s is not a valid JSON", scenery_request)
+    logging.info("Getting scenery for %s", scenery_id)
+    scenery_json = get_json_from_api(scenery_request)
+    if not scenery_json:
+        logging.warn("No scenery received for %s", scenery_id)
         return None
 
     scenery_blob = scenery_json.get('scenery', {}).get('masterZipBlob', None)
@@ -109,4 +119,40 @@ def print_combined_apt_file(apt_list=None):
     print_apt_footer()
     return 0
 
+def get_airports(api_base="http://gateway.x-plane.com/apiv1/"):
+    """ Gets all airports from X-plane API and forms a dict:
+        {
+            "ABCD": 1234,
+            "EFGH": 5678,
+            "IJKL": 0,
+        }
+        where
+        "ABCD", "EFGH", "IJKL" are ICAO code for airports
+        1234, 5678 and 0 are RecommendedSceneryId for corresponding airport.
+        The Id may be zero - no good apt for this airport
+    """
 
+    airport_to_scenery = {} # this will be returned in the end
+    airports_request = api_base + "airports"
+    logging.info("Requesting all airports list")
+    airports_json = get_json_from_api(airports_request)
+    if not airports_json:
+        logging.error("No airports received")
+        return None
+    logging.info("Received list of %s airports",
+                 airports_json.get('total', 0))
+    # now check each wirport if it has scenery
+    for airport in airports_json.get('airports', []):
+        logging.debug("Looking for RecommendedSceneryId for %s",
+                      airport['AirportCode'])
+        if not airport['RecommendedSceneryId']:
+            logging.warn("Airport %s has no RecommendedSceneryId. Skipping",
+                         airport['AirportCode'])
+            continue
+        # add the airport code and corresponding scenery ID to resulting dict
+        airport_to_scenery[airport['AirportCode']] = (
+            airport['RecommendedSceneryId'])
+
+    logging.info("Finished looking for RecommendedSceneryId. %s found",
+                 len(airport_to_scenery))
+    return airport_to_scenery
