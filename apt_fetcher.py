@@ -80,7 +80,18 @@ def strip_airport_apt(raw_airport_apt=None):
     # Also remove leading and trailing newlines and spaces
     return "\n".join(apt_lines[2:-1]).strip()
 
-def print_single_apt(apt_list=None):
+def print_apt_header():
+    """ outputs apt file header to STDOUT
+    """
+    sys.stdout.write("I\n1000 Version\n\n")
+
+def print_apt_footer():
+    """ outputs apt file footer to STDOUT
+    """
+    sys.stdout.write("\n99")
+
+
+def print_combined_apt_file(apt_list=None):
     """ Function receives a list of airports' APT data free from headers
         and footers (after strip_airport_apt() call), adds a common
         header and footer and outputs all the airports combined to STDOUT
@@ -89,11 +100,13 @@ def print_single_apt(apt_list=None):
         raise Exception("No airport's APTs passed")
 
     # write header
-    sys.stdout.write("I\n1000 Version\n\n")
+    print_apt_header()
     # write each airport passed adding an empty line at end of each
     for airport in apt_list:
         sys.stdout.write(airport)
         sys.stdout.write("\n\n")
     # write footer
-    sys.stdout.write("99")
+    print_apt_footer()
     return 0
+
+
