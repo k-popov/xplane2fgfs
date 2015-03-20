@@ -27,6 +27,8 @@ ap_zip_stringio = StringIO.StringIO(
     base64.b64decode(sc_json['scenery']['masterZipBlob']))
 
 with zipfile.ZipFile(ap_zip_stringio, 'r') as ap_zip:
-    ap_zip.extract("{0}.dat".format(ap_icao))
+    sys.stdout.write(
+        ap_zip.open("{0}.dat".format(ap_icao)).read()
+        )
 
 sys.exit(0)
