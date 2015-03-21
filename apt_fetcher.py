@@ -131,6 +131,15 @@ def get_airports(api_base="http://gateway.x-plane.com/apiv1/"):
         1234, 5678 and 0 are RecommendedSceneryId for corresponding airport.
         The Id may be zero - no good apt for this airport
     """
+#this may be used for debugging not to put load on servers
+#
+#    return simplejson.loads("""
+#{
+#"E46": 13794,
+#"SSOK": 29829,
+#"1RSU": 4095
+#}
+#""".strip())
 
     airport_to_scenery = {} # this will be returned in the end
     airports_request = api_base + "airports"
@@ -145,14 +154,55 @@ def get_airports(api_base="http://gateway.x-plane.com/apiv1/"):
     for airport in airports_json.get('airports', []):
         logging.debug("Looking for RecommendedSceneryId for %s",
                       airport['AirportCode'])
-        if not airport['RecommendedSceneryId']:
-            logging.warn("Airport %s has no RecommendedSceneryId. Skipping",
+        if not airport.get('RecommendedSceneryId', None):
+            logging.warn("Airport %s has no RecommendedSceneryId.",
                          airport['AirportCode'])
-            continue
         # add the airport code and corresponding scenery ID to resulting dict
         airport_to_scenery[airport['AirportCode']] = (
-            airport['RecommendedSceneryId'])
+            airport.get('RecommendedSceneryId', 0))
 
     logging.info("Finished looking for RecommendedSceneryId. %s found",
                  len(airport_to_scenery))
     return airport_to_scenery
+
+def main():
+    """ Fetch all airports APT data and put in to STDOUT
+    """
+    # set logging to INFO. May be set to DEBUG if required
+    logging.basicConfig(level=logging.INFO)
+    # suppress lb3.connectionpool logging
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+    # get mapping of airport-to-sceneryID
+    all_airports = get_airports()
+    airports_total = len(all_airports)
+    airports_processed = 0 # will count processed airports
+    current_airport = 0 # will display the current airport number in list
+
+    print_apt_header() # let's start writing our big APT file
+
+    for code, scenery in get_airports().iteritems():
+        current_airport += 1
+        logging.info("[%s/%s] %s is being processed",
+                     current_airport, airports_total, code)
+        if not scenery:
+            logging.warn("%s has no RecommendedSceneryId", code)
+            continue
+        logging.info("Getting APT data for %s", code)
+        apt_data = get_airport_apt(scenery)
+        if not apt_data:
+            logging.warn("Failed to get APT data for %s", code)
+            continue
+        sys.stdout.write("\n")
+        sys.stdout.write(
+            strip_airport_apt(apt_data))
+        sys.stdout.write("\n")
+
+        airports_processed += 1 # we've processed this airport
+
+    logging.info("Finished processing airports. Processed %s airports",
+                 airports_processed)
+    print_apt_footer() # print footer of a big APT file
+    logging.info("APT file generation is complete.")
+
+if __name__ == "__main__":
+    main()
