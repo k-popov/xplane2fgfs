@@ -22,7 +22,7 @@ def get_json_from_api(api_request=None):
     logging.debug("Converting reply from %s into dict", api_request)
     try:
         reply_dict = reply.json()
-    except simplejson.scanner.JSONDecodeError:
+    except ValueError:
         logging.error("Reply from %s is not a valid JSON", api_request)
         return None
     return reply_dict
