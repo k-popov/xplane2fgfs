@@ -4,7 +4,6 @@
 
 import logging
 import requests
-import simplejson
 import StringIO
 import base64
 import zipfile
@@ -14,7 +13,25 @@ def get_json_from_api(api_request=None):
     """ Requests data from API, handles errors and tries to convert
         the JSON reply into python dict
     """
-    reply = requests.get(api_request)
+    max_retries = 3
+    retries_done = 0
+    while True:
+        retries_done += 1
+        try:
+            reply = requests.get(api_request, timeout=60)
+            break
+        except (requests.exceptions.HTTPError, requests.exceptions.Timeout):
+            if retries_done < max_retries:
+                logging.warn("Error getting from %s. Retrying.", api_request)
+                continue
+            else:
+                logging.error(
+                    "Failed to get from %s after %s retries. Returning None",
+                    api_request, retries_done)
+                return None
+        except:
+            logging.error("Failed to get from %s. returning None", api_request)
+            return None
     if reply.status_code != 200:
         logging.error("Failed to receive data from %s. Code %s",
                       api_request, reply.status_code)
