@@ -9,8 +9,20 @@ import base64
 import zipfile
 import sys
 import simplejson
+import os
 
 LATEST_DATA_FILE = "latest.json"
+APT_DIR = "airports"
+APT_FILENAME_TEMPLATE = "%s.dat"
+
+def init_dir_structure():
+    """ Created directories structure for script to work with.
+        Currently it is only a directory for individual airport .dat files
+    """
+    if os.path.isdir(APT_DIR):
+        return
+    logging.info("Creating %s to store airports .dat files in it.", APT_DIR)
+    os.mkdir(APT_DIR)
 
 def save_latest_data(airport_to_scenery=None,
                      output_file_name=LATEST_DATA_FILE):
