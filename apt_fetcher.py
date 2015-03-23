@@ -56,8 +56,13 @@ def load_latest_data(input_file_name=LATEST_DATA_FILE):
     """
     logging.info("Loading airport <-> recommendedSceneryId pairs from %s",
                  input_file_name)
-    with open(input_file_name, 'r') as latest_data_file:
-        apt_to_scn = simplejson.load(latest_data_file)
+    try:
+        with open(input_file_name, 'r') as latest_data_file:
+            apt_to_scn = simplejson.load(latest_data_file)
+    except IOError:
+        logging.warn("File %s can't be read.", latest_data_file)
+        logging.info("The previous message may be ignored if you're downloading airports for the 1st time.") #pylint: disable=line-too-long
+        return {}
     logging.info("Successfully loaded %s airports from %s",
                  len(apt_to_scn), input_file_name)
     return apt_to_scn
