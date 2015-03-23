@@ -12,7 +12,8 @@ import simplejson
 
 LATEST_DATA_FILE = "latest.json"
 
-def save_latest_data(airport_to_scenery=None):
+def save_latest_data(airport_to_scenery=None,
+                     output_file_name=LATEST_DATA_FILE):
     """ Save the latest airport <-> recommendedSceneryId pairs in JSON format.
         Input data format (python dict):
         {
@@ -26,7 +27,7 @@ def save_latest_data(airport_to_scenery=None):
         Final data to be saved is also returned by the function.
     """
     logging.info("Saving airport <-> recommendedSceneryId pairs to %s",
-                 LATEST_DATA_FILE)
+                 output_file_name)
     if not (airport_to_scenery and type(airport_to_scenery) == dict):
         raise Exception("Bad data format or no input data.")
     # filter out airports with no recommendedSceneryId
@@ -40,13 +41,26 @@ def save_latest_data(airport_to_scenery=None):
     if not apt_to_scn_clean:
         raise Exception("No airport <-> scenery data to save.")
 
-    with open(LATEST_DATA_FILE, 'w') as latest_data_file:
+    with open(output_file_name, 'w') as latest_data_file:
         simplejson.dump(apt_to_scn_clean, latest_data_file,
                         sort_keys=True, indent=" " * 4)
     logging.info("Sucessfully saved %s airport <-> recommendedSceneryId to %s",
-                 len(apt_to_scn_clean), LATEST_DATA_FILE)
+                 len(apt_to_scn_clean), output_file_name)
 
     return apt_to_scn_clean
+
+def load_latest_data(input_file_name=LATEST_DATA_FILE):
+    """ Loads the latest airport <-> recommendedSceneryId pairs in JSON format
+        from the file specified. File is normally generated
+        by save_latest_data(). See this function docstring for format.
+    """
+    logging.info("Loading airport <-> recommendedSceneryId pairs from %s",
+                 input_file_name)
+    with open(input_file_name, 'r') as latest_data_file:
+        apt_to_scn = simplejson.load(latest_data_file)
+    logging.info("Successfully loaded %s airports from %s",
+                 len(apt_to_scn), input_file_name)
+    return apt_to_scn
 
 def get_json_from_api(api_request=None):
     """ Requests data from API, handles errors and tries to convert
