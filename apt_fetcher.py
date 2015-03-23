@@ -8,6 +8,45 @@ import StringIO
 import base64
 import zipfile
 import sys
+import simplejson
+
+LATEST_DATA_FILE = "latest.json"
+
+def save_latest_data(airport_to_scenery=None):
+    """ Save the latest airport <-> recommendedSceneryId pairs in JSON format.
+        Input data format (python dict):
+        {
+            "ABCD": 1234,
+            "EFGH": 5678,
+        }
+        where
+        "ABCD", "EFGH", "IJKL" are ICAO code for airports
+        1234, 5678 are RecommendedSceneryId for corresponding airport.
+        The entries with RecommendedSceneryId equal 0 will not be saved.
+        Final data to be saved is also returned by the function.
+    """
+    logging.info("Saving airport <-> recommendedSceneryId pairs to %s",
+                 LATEST_DATA_FILE)
+    if not (airport_to_scenery and type(airport_to_scenery) == dict):
+        raise Exception("Bad data format or no input data.")
+    # filter out airports with no recommendedSceneryId
+    apt_to_scn_clean = {}
+    for apt, scn in airport_to_scenery.iteritems():
+        if scn:
+            apt_to_scn_clean[apt] = scn
+        else:
+            logging.debug(
+                "Airport %s has no recommendedSceneryId. Not saving.", apt)
+    if not apt_to_scn_clean:
+        raise Exception("No airport <-> scenery data to save.")
+
+    with open(LATEST_DATA_FILE, 'w') as latest_data_file:
+        simplejson.dump(apt_to_scn_clean, latest_data_file,
+                        sort_keys=True, indent=" " * 4)
+    logging.info("Sucessfully saved %s airport <-> recommendedSceneryId to %s",
+                 len(apt_to_scn_clean), LATEST_DATA_FILE)
+
+    return apt_to_scn_clean
 
 def get_json_from_api(api_request=None):
     """ Requests data from API, handles errors and tries to convert
