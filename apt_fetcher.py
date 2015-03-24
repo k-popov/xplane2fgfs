@@ -13,7 +13,7 @@ import os
 
 LATEST_DATA_FILE = "latest.json"
 APT_DIR = "airports"
-APT_FILENAME_TEMPLATE = "%s.dat"
+APT_FILENAME_TEMPLATE = "{0}.dat"
 
 def init_dir_structure():
     """ Created directories structure for script to work with.
@@ -24,8 +24,8 @@ def init_dir_structure():
     logging.info("Creating %s to store airports .dat files in it.", APT_DIR)
     os.mkdir(APT_DIR)
 
-def save_latest_data(airport_to_scenery=None,
-                     output_file_name=LATEST_DATA_FILE):
+def save_local_ap_data(airport_to_scenery=None,
+                       output_file_name=LATEST_DATA_FILE):
     """ Save the latest airport <-> recommendedSceneryId pairs in JSON format.
         Input data format (python dict):
         {
@@ -61,7 +61,7 @@ def save_latest_data(airport_to_scenery=None,
 
     return apt_to_scn_clean
 
-def load_latest_data(input_file_name=LATEST_DATA_FILE):
+def load_local_ap_data(input_file_name=LATEST_DATA_FILE):
     """ Loads the latest airport <-> recommendedSceneryId pairs in JSON format
         from the file specified. File is normally generated
         by save_latest_data(). See this function docstring for format.
@@ -90,7 +90,9 @@ def get_json_from_api(api_request=None):
         try:
             reply = requests.get(api_request, timeout=60)
             break
-        except (requests.exceptions.HTTPError, requests.exceptions.Timeout):
+        except (requests.exceptions.HTTPError,
+                requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError):
             if retries_done < max_retries:
                 logging.warn("Error getting from %s. Retrying.", api_request)
                 continue
@@ -99,7 +101,7 @@ def get_json_from_api(api_request=None):
                     "Failed to get from %s after %s retries. Returning None",
                     api_request, retries_done)
                 return None
-        except:
+        except requests.exceptions.RequestException:
             logging.error("Failed to get from %s. returning None", api_request)
             return None
     if reply.status_code != 200:
@@ -114,8 +116,8 @@ def get_json_from_api(api_request=None):
         return None
     return reply_dict
 
-def get_airport_apt(scenery_id=None,
-                    api_base="http://gateway.x-plane.com/apiv1/"):
+def get_ap_data(scenery_id=None,
+                api_base="http://gateway.x-plane.com/apiv1/"):
     """ Gets scenery pack via X-Plane gateway API, unpacks it
         and returns the requested airport in apt format
     """
@@ -206,7 +208,7 @@ def print_combined_apt_file(apt_list=None):
     print_apt_footer()
     return 0
 
-def get_airports(api_base="http://gateway.x-plane.com/apiv1/"):
+def get_gateway_ap_list(api_base="http://gateway.x-plane.com/apiv1/"):
     """ Gets all airports from X-plane API and forms a dict:
         {
             "ABCD": 1234,
@@ -259,36 +261,61 @@ def main():
     logging.basicConfig(level=logging.INFO)
     # suppress lb3.connectionpool logging
     logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
-    # get mapping of airport-to-sceneryID
-    all_airports = get_airports()
-    airports_total = len(all_airports)
-    airports_processed = 0 # will count processed airports
-    current_airport = 0 # will display the current airport number in list
+    # suppress requests logging
+    logging.getLogger("requests").setLevel(logging.INFO)
 
-    print_apt_header() # let's start writing our big APT file
-
-    for code, scenery in get_airports().iteritems():
-        current_airport += 1
-        logging.info("[%s/%s] %s is being processed",
-                     current_airport, airports_total, code)
+    # get mapping of airport-to-sceneryID from x-plane gateway
+    logging.debug("Getting a list of all airports from gateway.")
+    all_airports_gw = get_gateway_ap_list()
+    # loadairport-to-sceneryID data that is already on local disk.
+    logging.debug("Loading list of local airports.")
+    all_airports_local = load_local_ap_data()
+    airports_total = len(all_airports_gw)
+    airports_processed = 1 # will count processed airports
+    # save AP ICAO codes we didn't get data for (excl. up-to-date ones)
+    airports_failed = []
+    for code, scenery in all_airports_gw:
+        logging.info("[%s/%s] Processing airport %s", airports_processed,
+                     airports_total, code)
+        airports_processed += 1
         if not scenery:
-            logging.warn("%s has no RecommendedSceneryId", code)
+            logging.warn("%s has no RecommendedSceneryId. Skipping.", code)
+            if code not in airports_failed:
+                airports_failed.append(code)
             continue
-        logging.info("Getting APT data for %s", code)
-        apt_data = get_airport_apt(scenery)
-        if not apt_data:
-            logging.warn("Failed to get APT data for %s", code)
+        if all_airports_local.get(code, None) == scenery:
+            logging.info("Airport %s is up-to-date. Not updating.", code)
             continue
-        sys.stdout.write("\n")
-        sys.stdout.write(
-            strip_airport_apt(apt_data))
-        sys.stdout.write("\n")
-
-        airports_processed += 1 # we've processed this airport
+        logging.debug("Getting airport %s scenery from gateway.", code)
+        airport_apt_data = get_ap_data(scenery)
+        if not airport_apt_data:
+            logging.error("Failed to get APT data for %s", code)
+            if code not in airports_failed:
+                airports_failed.append(code)
+            continue
+        # construct path to file that stores airport data
+        apt_file_path = os.path.sep.join(
+            [APT_DIR, APT_FILENAME_TEMPLATE.format(code)])
+        try:
+            # save the received airport data to file
+            logging.debug("Saving %s data into %s", code, apt_file_path)
+            with open(apt_file_path, 'w') as apt_file:
+                apt_file.write(airport_apt_data)
+            # save information about the airport just downloaded
+            # This happens after each airport download but gives
+            # more consistency in case of a download or write issue
+            logging.debug("Updating local list of airports.")
+            all_airports_local[code] = scenery
+            logging.debug("Writing local list of airports into file.")
+            save_local_ap_data(all_airports_local)
+        except IOError:
+            logging.error("Error saving %s to file. Leaving as is.", code)
+            if code not in airports_failed:
+                airports_failed.append(code)
 
     logging.info("Finished processing airports. Processed %s airports",
                  airports_processed)
-    print_apt_footer() # print footer of a big APT file
+    logging.debug("Problem airports (see log): %s", str(airports_failed))
     logging.info("APT file generation is complete.")
 
 if __name__ == "__main__":
