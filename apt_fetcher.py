@@ -38,8 +38,8 @@ def save_local_ap_data(airport_to_scenery=None,
         The entries with RecommendedSceneryId equal 0 will not be saved.
         Final data to be saved is also returned by the function.
     """
-    logging.info("Saving airport <-> recommendedSceneryId pairs to %s",
-                 output_file_name)
+    logging.debug("Saving airport <-> recommendedSceneryId pairs to %s",
+                  output_file_name)
     if not (airport_to_scenery and type(airport_to_scenery) == dict):
         raise Exception("Bad data format or no input data.")
     # filter out airports with no recommendedSceneryId
@@ -56,8 +56,8 @@ def save_local_ap_data(airport_to_scenery=None,
     with open(output_file_name, 'w') as latest_data_file:
         simplejson.dump(apt_to_scn_clean, latest_data_file,
                         sort_keys=True, indent=" " * 4)
-    logging.info("Sucessfully saved %s airport <-> recommendedSceneryId to %s",
-                 len(apt_to_scn_clean), output_file_name)
+    logging.debug("Sucessfully saved %s airport <-> recommendedSceneryId to %s",
+                  len(apt_to_scn_clean), output_file_name)
 
     return apt_to_scn_clean
 
@@ -66,17 +66,17 @@ def load_local_ap_data(input_file_name=LATEST_DATA_FILE):
         from the file specified. File is normally generated
         by save_latest_data(). See this function docstring for format.
     """
-    logging.info("Loading airport <-> recommendedSceneryId pairs from %s",
-                 input_file_name)
+    logging.debug("Loading airport <-> recommendedSceneryId pairs from %s",
+                  input_file_name)
     try:
-        with open(input_file_name, 'r') as latest_data_file:
-            apt_to_scn = simplejson.load(latest_data_file)
+        with open(input_file_name, 'r') as input_file:
+            apt_to_scn = simplejson.load(input_file)
     except IOError:
-        logging.warn("File %s can't be read.", latest_data_file)
+        logging.warn("File %s can't be read.", input_file_name)
         logging.info("The previous message may be ignored if you're downloading airports for the 1st time.") #pylint: disable=line-too-long
         return {}
-    logging.info("Successfully loaded %s airports from %s",
-                 len(apt_to_scn), input_file_name)
+    logging.debug("Successfully loaded %s airports from %s",
+                  len(apt_to_scn), input_file_name)
     return apt_to_scn
 
 def get_json_from_api(api_request=None):
@@ -257,13 +257,18 @@ def get_gateway_ap_list(api_base="http://gateway.x-plane.com/apiv1/"):
 def main():
     """ Fetch all airports APT data and put in to STDOUT
     """
-    # set logging to INFO. May be set to DEBUG if required
-    logging.basicConfig(level=logging.INFO)
-    # suppress lb3.connectionpool logging
-    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
-    # suppress requests logging
-    logging.getLogger("requests").setLevel(logging.INFO)
+    # set DEBUG environmental variable to anything non-empty to have debug log
+    if os.environ.get("DEBUG", None):
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+        # suppress lb3.connectionpool logging
+        logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+        # suppress requests logging
+        logging.getLogger("requests").setLevel(logging.INFO)
 
+    # create required directories
+    init_dir_structure()
     # get mapping of airport-to-sceneryID from x-plane gateway
     logging.debug("Getting a list of all airports from gateway.")
     all_airports_gw = get_gateway_ap_list()
@@ -271,19 +276,22 @@ def main():
     logging.debug("Loading list of local airports.")
     all_airports_local = load_local_ap_data()
     airports_total = len(all_airports_gw)
-    airports_processed = 1 # will count processed airports
+    airports_processed = 0 # will count processed airports
     # save AP ICAO codes we didn't get data for (excl. up-to-date ones)
     airports_failed = []
-    for code, scenery in all_airports_gw:
+    for code, scenery in all_airports_gw.iteritems():
+        airports_processed += 1
         logging.info("[%s/%s] Processing airport %s", airports_processed,
                      airports_total, code)
-        airports_processed += 1
         if not scenery:
             logging.warn("%s has no RecommendedSceneryId. Skipping.", code)
             if code not in airports_failed:
                 airports_failed.append(code)
             continue
-        if all_airports_local.get(code, None) == scenery:
+        local_ap_scenery_id = all_airports_local.get(code, None)
+        logging.debug("Airport %s, local scenery %s, remote scenery %s",
+                      code, local_ap_scenery_id, scenery)
+        if local_ap_scenery_id == scenery:
             logging.info("Airport %s is up-to-date. Not updating.", code)
             continue
         logging.debug("Getting airport %s scenery from gateway.", code)
