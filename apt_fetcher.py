@@ -254,19 +254,11 @@ def get_gateway_ap_list(api_base="http://gateway.x-plane.com/apiv1/"):
                  len(airport_to_scenery))
     return airport_to_scenery
 
-def main():
-    """ Fetch all airports APT data and put in to STDOUT
+def update_local_aps():
+    """ Fetch all airports APT data and put them in separate files.
+        Returns a list of all airports locally available. Format is
+        the same as get_gateway_ap_list() has.
     """
-    # set DEBUG environmental variable to anything non-empty to have debug log
-    if os.environ.get("DEBUG", None):
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.INFO)
-        # suppress lb3.connectionpool logging
-        logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
-        # suppress requests logging
-        logging.getLogger("requests").setLevel(logging.INFO)
-
     # create required directories
     init_dir_structure()
     # get mapping of airport-to-sceneryID from x-plane gateway
@@ -324,7 +316,25 @@ def main():
     logging.info("Finished processing airports. Processed %s airports",
                  airports_processed)
     logging.debug("Problem airports (see log): %s", str(airports_failed))
-    logging.info("APT file generation is complete.")
+    return all_airports_local
+
+def main():
+    """ Get fresh airports data from X-plane gateway and generate new apt.dat.
+    """
+    # set DEBUG environmental variable to anything non-empty to have debug log
+    if os.environ.get("DEBUG", None):
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+        # suppress lb3.connectionpool logging
+        logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+        # suppress requests logging
+        logging.getLogger("requests").setLevel(logging.INFO)
+
+    local_ap_available = update_local_aps()
+    logging.info("%d airports locally available in %s",
+                 len(local_ap_available),
+                 APT_DIR)
 
 if __name__ == "__main__":
     main()
