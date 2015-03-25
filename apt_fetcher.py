@@ -14,6 +14,10 @@ import os
 LATEST_DATA_FILE = "latest.json"
 APT_DIR = "airports"
 APT_FILENAME_TEMPLATE = "{0}.dat"
+APT_DAT = "apt.dat"
+
+APT_HEADER = "I\n1000 Version\n\n"
+APT_FOOTER = "\n99"
 
 def init_dir_structure():
     """ Created directories structure for script to work with.
@@ -313,10 +317,40 @@ def update_local_aps():
             if code not in airports_failed:
                 airports_failed.append(code)
 
-    logging.info("Finished processing airports. Processed %s airports",
+    logging.info("Finished updating airports. Processed %s airports",
                  airports_processed)
     logging.debug("Problem airports (see log): %s", str(airports_failed))
     return all_airports_local
+
+def generate_single_ap_file(ap_available=None):
+    """ Generate a single file called apt.dat in current directory
+        with all airports there.
+    """
+    if not ap_available:
+        raise Exception("No airports available for apt.dat generation")
+    if os.path.isfile(APT_DAT):
+        logging.warn("%s already exists. Moving it to %s",
+                     APT_DAT, APT_DAT + ".bak")
+        os.rename(APT_DAT, APT_DAT + ".bak")
+    logging.info("Writing all airports into %s", APT_DAT)
+    with open(APT_DAT, 'w') as apt_file:
+        apt_file.write(APT_HEADER)
+        for code in ap_available:
+            # construct path to file that stores airport data
+            apt_file_path = os.path.sep.join(
+                [APT_DIR, APT_FILENAME_TEMPLATE.format(code)])
+            with open(apt_file_path, 'r') as single_ap:
+                logging.debug("Writing %s to %s", code, APT_DAT)
+                apt_file.write( # write the airport into common file
+                    strip_airport_apt( # strip header and footer
+                        single_ap.read())) # read airport data
+            apt_file.write("\n\n")
+        logging.debug("Completed writing airports to %s", APT_DAT)
+        # all airports written to single file. Write footer.
+        apt_file.write(APT_FOOTER)
+    logging.info("Writing airports into %s", APT_DAT)
+    return APT_DAT
+
 
 def main():
     """ Get fresh airports data from X-plane gateway and generate new apt.dat.
@@ -331,10 +365,13 @@ def main():
         # suppress requests logging
         logging.getLogger("requests").setLevel(logging.INFO)
 
+    # update all airports in separate files
     local_ap_available = update_local_aps()
     logging.info("%d airports locally available in %s",
                  len(local_ap_available),
                  APT_DIR)
+    # generate a single apt.dat file from all separate airports
+    generate_single_ap_file(local_ap_available)
 
 if __name__ == "__main__":
     main()
