@@ -12,13 +12,27 @@ into file of other program. e.g.:
 ```
 python get_airport.py ULSG > ULSG.dat
 ```
-## apt_fetcher.py
-The tool to get *all* airports
-available at X-plane gateway (http://gateway.x-plane.com/).
+## update_apt_file.py
+The tool to get *all* airports available at X-plane gateway
+(http://gateway.x-plane.com/) and generate a single "apt.dat" file
+with all airports in it.
+Individual airports fetched from gateway are saved in files and
+are not re-downloaded if they do not need updating.
+This reduces load on X-plane's server.
+
 Usage:
 ```
-pyton apt_fetcher.py > apt.dat
+pyton update_apt_file.py
 ```
 
-*I strongly recommend redirecting as the tool outputs all airports APT data
-to STDOUT. This was made to follow KISS concept.*
+Individual airports are saved in ```<ICAO>.dat``` files
+in ```airports/``` directory which is created in current work directory (CWD).
+Version of latest airports downloaded is stored in ```latest.json``` in CWD.
+resulting file ```apt.dat``` is generated in CWD. If a file with this name
+already exists, it's being renamed into ```apt.dat.bak```.
+
+Set ```DEBUG``` environment variable to non-empty value to have more logging.
+Example:
+```
+DEBUG=yes pyton update_apt_file.py
+```
