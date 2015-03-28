@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 """ Tool to download all airports from X-Plane portal
 """
 
